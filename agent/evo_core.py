@@ -1,38 +1,66 @@
-# Simple self-evolving learning core for Evogoat.
-# Pure Python + math; runs fast even on a phone.
-
-import json, random, math
+import json
+import time
+import numpy as np
+import zstandard as zstd
+from hashlib import sha3_512
 from pathlib import Path
+
 
 STATE_FILE = Path("data/state.json")
 
-class EvoCore:
-    def __init__(self, n=4, lr=0.1):
-        self.n = n
-        self.lr = lr
-        self.weights = [random.uniform(-1, 1) for _ in range(n)]
-        self.load()
 
-    def load(self):
+class EvoCore:
+    """
+    A lightweight evolutionary core that mutates a simple numeric model
+    and persists its state to disk between learning calls.
+    """
+
+    def __init__(self, model=None):
+        # Create a simple default model if none provided
+        if model is None:
+            self.model = type("SimpleModel", (), {
+                "weights": np.random.randn(4),
+                "fitness": 0.0,
+                "mutate": lambda self, rng: self,
+                "serialize": lambda self: self.weights.tolist()
+            })()
+        else:
+            self.model = model
+
+        # Load previous state if exists
         if STATE_FILE.exists():
             try:
                 data = json.loads(STATE_FILE.read_text())
-                self.weights = data["weights"]
+                self.model.weights = np.array(data.get("weights", self.model.weights))
+                self.model.fitness = data.get("fitness", 0.0)
             except Exception:
                 pass
 
-    def save(self):
+    def evolve(self, snippet: str, fitness_func):
+        """
+        Mutate the model deterministically based on the snippet
+        and compute new fitness. Save compressed state afterward.
+        """
+        seed = int(sha3_512(snippet.encode()).hexdigest()[:16], 16)
+        rng = np.random.default_rng(seed)
+
+        # Generate new candidate
+        new_weights = self.model.weights + rng.normal(0, 0.1, size=self.model.weights.shape)
+        new_fitness = fitness_func(new_weights)
+
+        if new_fitness > self.model.fitness:
+            self.model.weights = new_weights
+            self.model.fitness = new_fitness
+
+        # Compress + store state
+        state_data = json.dumps({
+            "weights": self.model.weights.tolist(),
+            "fitness": self.model.fitness,
+            "timestamp": time.time()
+        }).encode()
+
+        compressed = zstd.ZstdCompressor(level=5).compress(state_data)
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text(json.dumps({"weights": self.weights}))
+        STATE_FILE.write_bytes(compressed)
 
-    def act(self, inputs):
-        """Produce an output from numeric inputs."""
-        return math.tanh(sum(w * x for w, x in zip(self.weights, inputs)))
-
-    def evolve(self, inputs, target):
-        """Adjust weights toward target outcome."""
-        out = self.act(inputs)
-        error = target - out
-        for i in range(self.n):
-            self.weights[i] += self.lr * error * inputs[i]
-        return error
+        return sha3_512(state_data).hexdigest(), self.model.fitness
