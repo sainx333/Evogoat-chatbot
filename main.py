@@ -3,43 +3,32 @@ from pydantic import BaseModel
 from agent.evo_core import EvoCore
 import numpy as np
 
-# --- Simple model class the AI evolves ---
-class SimpleModel:
-    def __init__(self):
-        self.weights = np.random.randn(4)
-        self.fitness = 0.0
-
-    def predict(self, inputs):
-        return float(np.dot(self.weights, inputs))
-
-    def mutate(self):
-        self.weights += np.random.normal(0, 0.1, size=self.weights.shape)
-
-# --- Initialize FastAPI and the core engine ---
+# --- Core setup ---
 app = FastAPI(title="Evogoat AI")
 
-core = EvoCore()  # uses default model internally if coded that way
+# Initialize global EvoCore (persistent across requests)
+core = EvoCore()
 
-# --- Data model for incoming POST requests ---
+# --- Simple request model ---
 class LearnRequest(BaseModel):
     content: str
 
-# --- Health check ---
-@app.get("/health")
-def health():
-    return {"ok": True}
-
-# --- Root route (nice welcome message) ---
+# --- Root welcome route ---
 @app.get("/")
 def home():
     return {"message": "Evogoat AI is alive and evolving!"}
 
-# --- Learning endpoint ---
+# --- Health check route ---
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+# --- Learning route with error handling ---
 @app.post("/learn")
 def learn(request: LearnRequest):
     snippet = request.content
     try:
-        hash_value, fitness = EvoCore().evolve(snippet)
+        hash_value, fitness = core.evolve(snippet)
         return {
             "message": "Evolution step complete",
             "result": {
@@ -52,3 +41,12 @@ def learn(request: LearnRequest):
         import traceback
         traceback.print_exc()
         return {"error": str(e), "snippet": snippet}
+
+# --- Optional status route for monitoring ---
+@app.get("/status")
+def status():
+    try:
+        state = core.get_state() if hasattr(core, "get_state") else {}
+        return {"status": "running", "state": state}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
