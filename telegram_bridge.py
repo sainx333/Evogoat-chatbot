@@ -4,7 +4,6 @@ from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
-
 API_URL = os.getenv("EVO_API_URL", "https://evogoat-chatbot-eoow.onrender.com")
 
 # --- Commands ---
