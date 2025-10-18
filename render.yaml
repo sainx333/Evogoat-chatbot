@@ -1,0 +1,16 @@
+# Exported from Render on 2025-10-18T20:30:17Z
+version: "1"
+services:
+- type: web
+  name: Evogoat-chatbot
+  runtime: python
+  repo: https://github.com/sainx333/Evogoat-chatbot
+  plan: free
+  envVars:
+  - key: TELEGRAM_TOKEN
+    sync: false
+  region: oregon
+  buildCommand: bash -c pip install --upgrade pip setuptools wheel && pip install
+    --no-cache-dir -r requirements.txt"
+  startCommand: python telegram_bridge.py
+  autoDeployTrigger: commit
