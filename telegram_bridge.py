@@ -1,64 +1,71 @@
 import os
+import asyncio
+import logging
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import requests
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+
+logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
-API_URL = os.getenv("EVO_API_URL", "https://evogoat-chatbot-eoow.onrender.com")
 
-# --- Commands ---
+if not BOT_TOKEN:
+    raise SystemExit("❌ TELEGRAM_TOKEN not found in environment!")
+
+BACKEND_URL = os.getenv("BACKEND_URL", "https://evogoat-chatbot-zoks.onrender.com")
+
+# --- Basic commands ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[KeyboardButton("💡 Learn"), KeyboardButton("📊 Status")]]
+    keyboard = [["/menu", "/learn"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        "🐐 Welcome to Evogoat! Choose an option:",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        "👋 Welcome to Evogoat! Choose an option below or type a message to evolve.",
+        reply_markup=reply_markup
     )
+
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "🧠 *Evogoat Menu*\n\n"
+        "/learn — Teach Evogoat something new\n"
+        "/health — Check system status\n"
+        "/about — Learn about this project"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Evogoat is an adaptive AI experiment built with FastAPI and Telegram.")
+
+# --- Interaction with FastAPI backend ---
+
+async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Send a short message to teach Evogoat.")
+    context.user_data["awaiting_learning"] = True
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip().lower()
+    if context.user_data.get("awaiting_learning"):
+        snippet = update.message.text
+        context.user_data["awaiting_learning"] = False
 
-    if text in ("💡 learn", "learn"):
-        await update.message.reply_text("Send me something new to learn!")
-    elif text in ("📊 status", "status"):
         try:
-            res = requests.get(f"{API_URL}/health", timeout=10)
-            data = res.json()
-            await update.message.reply_text(f"✅ Status: {data}")
+            response = requests.post(f"{BACKEND_URL}/learn", json={"content": snippet})
+            data = response.json()
+            await update.message.reply_text(f"✅ Learned: {data}")
         except Exception as e:
-            await update.message.reply_text(f"⚠️ Couldn't reach Evogoat: {e}")
+            await update.message.reply_text(f"⚠️ Error communicating with backend: {e}")
     else:
-        try:
-            res = requests.post(f"{API_URL}/learn", json={"content": text}, timeout=15)
-            data = res.json()
-            if "message" in data:
-                await update.message.reply_text(f"🤖 {data['message']}")
-            else:
-                await update.message.reply_text(f"⚠️ Error: {data}")
-        except Exception as e:
-            await update.message.reply_text(f"⚠️ Failed to connect: {e}")
+        await update.message.reply_text("Use /menu to see available commands.")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Commands:\n"
-        "/start - show menu\n"
-        "/help - show this message\n"
-        "Send any text to let Evogoat learn!"
+# --- App entry point ---
+
+async def main():
+    app = (
+        ApplicationBuilder()
+        .token(BOT_TOKEN)
+        .concurrent_updates(True)
+        .build()
     )
 
-# --- Main bot setup ---
-def main():
-    if not BOT_TOKEN:
-        print("❌ TELEGRAM_TOKEN not found in environment!")
-        return
-
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("🐐 Evogoat Telegram bridge active.")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CommandHandler("about", about))
