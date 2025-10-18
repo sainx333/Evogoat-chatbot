@@ -1,11 +1,9 @@
-from pydantic import BaseModel
 from fastapi import FastAPI
+from pydantic import BaseModel
 from agent.evo_core import EvoCore
 import numpy as np
 
-app = FastAPI(title="Evogoat AI")
-
-# --- Simple base model class ---
+# --- Simple model class the AI evolves ---
 class SimpleModel:
     def __init__(self):
         self.weights = np.random.randn(4)
@@ -14,28 +12,35 @@ class SimpleModel:
     def predict(self, inputs):
         return float(np.dot(self.weights, inputs))
 
-    def mutate(self, rng):
-        child = SimpleModel()
-        child.weights = self.weights + rng.normal(0, 0.1, size=self.weights.shape)
-        return child
+    def mutate(self):
+        self.weights += np.random.normal(0, 0.1, size=self.weights.shape)
 
-    def serialize(self):
-        return self.weights.tolist()
+# --- Initialize FastAPI and the core engine ---
+app = FastAPI(title="Evogoat AI")
 
-# Initialize EvoCore (no argument, since EvoCore builds its own model)
-core = EvoCore()
+core = EvoCore()  # uses default model internally if coded that way
 
-# --- Request model for /learn ---
+# --- Data model for incoming POST requests ---
 class LearnRequest(BaseModel):
     content: str
 
+# --- Health check ---
 @app.get("/health")
 def health():
     return {"ok": True}
 
+# --- Root route (nice welcome message) ---
+@app.get("/")
+def home():
+    return {"message": "Evogoat AI is alive and evolving!"}
+
+# --- Learning endpoint ---
 @app.post("/learn")
 def learn(request: LearnRequest):
     snippet = request.content
-    hash_value, fitness = core.evolve(snippet, lambda m: np.random.rand())
-    return {"message": "Evolution step complete",
-            "result": {"fitness": fitness, "snippet": snippet}}
+    # call your evolution logic from evo_core
+    hash_value, fitness = core.evolve(snippet)
+    return {
+        "message": "Evolution step complete",
+        "result": {"hash": hash_value, "fitness": fitness, "snippet": snippet},
+    }
