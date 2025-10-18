@@ -1,16 +1,20 @@
-# Exported from Render on 2025-10-18T20:30:17Z
+# render.yaml — Evogoat unified deployment
 version: "1"
+
 services:
   - type: web
     name: evogoat-chatbot
     env: python
     plan: free
-    buildCommand: >
-      bash -c "pip install --upgrade pip setuptools wheel &&
-      pip install --no-cache-dir -r requirements.txt"
-    startCommand: >
-      bash -c "uvicorn main:app --host 0.0.0.0 --port 10000 &
-      python telegram_bridge.py"
+
+    buildCommand: |
+      pip install --upgrade pip setuptools wheel
+      pip install --no-cache-dir -r requirements.txt
+
+    startCommand: |
+      uvicorn main:app --host 0.0.0.0 --port 10000 &
+      python telegram_bridge.py
+
     envVars:
       - key: TELEGRAM_TOKEN
         sync: false
