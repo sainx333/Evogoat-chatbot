@@ -20,7 +20,7 @@ def home():
 
 # --- Health check route ---
 @app.get("/health")
-def health()
+def health():
     return {"ok": True}
 
 # --- Learning route with error handling ---
