@@ -20,7 +20,7 @@ def home():
 
 # --- Health check route ---
 @app.get("/health")
-def health():
+def health()
     return {"ok": True}
 
 # --- Learning route with error handling ---
@@ -28,7 +28,11 @@ def health():
 def learn(request: LearnRequest):
     snippet = request.content
     try:
-        hash_value, fitness = core.evolve(snippet)
+        # simple internal fitness heuristic
+        def default_fitness(model):
+            return float(np.exp(-np.linalg.norm(model.weights)))
+
+        hash_value, fitness = core.evolve(snippet, default_fitness)
         return {
             "message": "Evolution step complete",
             "result": {
@@ -41,7 +45,6 @@ def learn(request: LearnRequest):
         import traceback
         traceback.print_exc()
         return {"error": str(e), "snippet": snippet}
-
 # --- Optional status route for monitoring ---
 @app.get("/status")
 def status():
