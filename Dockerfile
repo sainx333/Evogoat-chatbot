@@ -1,18 +1,17 @@
-# Use a modern Python base image
-FROM python:3.12-slim
+# Read the doc: https://huggingface.co/docs/hub/spaces-sdks-docker
+# you will also find guides on how best to write your Dockerfile
 
-# Set working directory inside the container
+FROM python:3.9
+
+RUN useradd -m -u 1000 user
+USER user
+ENV PATH="/home/user/.local/bin:$PATH"
+
 WORKDIR /app
 
-# Copy all your code into the container
-COPY . .
+COPY --chown=user ./requirements.txt requirements.txt
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-# Upgrade pip and install dependencies
-RUN pip install --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir -r requirements.txt
+COPY --chown=user . /app
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
 
-# Expose port 7860 for Hugging Face
-EXPOSE 7860
-
-# Start both the FastAPI app and (optionally) Telegram bridge
-CMD ["bash", "-c", "uvicorn main:app --host 0.0.0.0 --port 7860"]
